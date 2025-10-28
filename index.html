@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Inbox (1)</title>
+<link rel="apple-touch-icon" href="#" />
+<style>
+  /* --- Base / reset --- */
+  :root{
+    --bg:#f6f7fb;
+    --panel:#ffffff;
+    --muted:#6b6f76;
+    --accent:#1a73e8;
+    --unread:#e8f0fe;
+    --shadow: 0 6px 18px rgba(18,20,24,0.06);
+    --mono: "SFMono-Regular", ui-monospace, "Roboto Mono", "Menlo", monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 100%);
+    color:#111827;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* --- Layout --- */
+  .app {
+    max-width:1100px;
+    margin:36px auto;
+    display:grid;
+    grid-template-columns: 260px 1fr;
+    gap:20px;
+    padding:20px;
+  }
+  .sidebar{
+    background:var(--panel);
+    border-radius:12px;
+    padding:18px;
+    box-shadow:var(--shadow);
+    height:600px;
+    display:flex;
+    flex-direction:column;
+  }
+  .logo{
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:0.2px;
+    color:var(--accent);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .logo .dot{width:10px;height:10px;border-radius:2px;background:var(--accent); box-shadow:0 0 14px rgba(26,115,232,0.12)}
+  .compose{
+    margin-top:18px;
+    background:linear-gradient(180deg,#f8fbff,#ffffff);
+    border-radius:10px;
+    padding:10px;
+    font-weight:600;
+    color:var(--accent);
+    cursor:pointer;
+    text-align:center;
+    border:1px solid rgba(26,115,232,0.08);
+  }
+  .folders{margin-top:18px; display:flex; flex-direction:column; gap:8px;}
+  .folder{padding:8px 10px;border-radius:8px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; font-size:14px; cursor:default;}
+  .folder.unread{background:var(--unread); color:var(--accent); font-weight:600;}
+
+  /* --- Main panel --- */
+  .panel{
+    background:var(--panel);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    min-height:600px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* topbar */
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:12px 18px;
+    border-bottom:1px solid #eef2ff;
+    background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.35));
+  }
+  .search{
+    background:#f2f4f8;
+    padding:10px 12px;
+    border-radius:8px;
+    flex:1;
+    color:#8b9098;
+    font-size:14px;
+  }
+  .tools{display:flex; gap:8px; align-items:center;}
+  .tool{padding:8px 10px; border-radius:8px; background:transparent; color:var(--muted); font-size:14px; cursor:default;}
+
+  /* email list */
+  .list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding:18px;
+    max-height:250px;
+    overflow:auto;
+  }
+  .mail-row{
+    display:flex;
+    gap:12px;
+    padding:12px;
+    border-radius:10px;
+    align-items:flex-start;
+    cursor:pointer;
+    transition:background .18s ease, transform .09s ease;
+  }
+  .mail-row:hover{background:#f7f9ff; transform:translateY(-2px)}
+  .avatar{
+    width:44px;height:44px;border-radius:6px;background:linear-gradient(135deg,#ffb4d6,#b3d9ff);
+    display:flex;align-items:center;justify-content:center;color:white;font-weight:700;
+    font-size:14px;
+  }
+  .meta{flex:1}
+  .meta .from{font-weight:700;font-size:14px}
+  .meta .subject{color:#111827;margin-top:6px; font-size:15px}
+  .meta .snippet{color:var(--muted); margin-top:6px; font-size:13px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);margin-left:8px}
+
+  /* email view */
+  .reader{padding:22px;flex:1;overflow:auto}
+  .header-line{display:flex;gap:12px;align-items:center}
+  .header-line .fromline{display:flex;flex-direction:column}
+  .fromline .who{font-weight:700}
+  .fromline .mail{color:var(--muted);font-size:13px;margin-top:4px}
+  .timestamp{margin-left:auto;color:var(--muted);font-size:13px}
+  .subject-area{margin-top:18px;padding:18px;border-radius:10px;background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid #f0f6ff}
+  .subject-text{font-size:20px;font-weight:700;letter-spacing:-0.2px}
+
+  /* subject glitch */
+  .glitch{
+    display:inline-block;
+    position:relative;
+    overflow:visible;
+    will-change:transform,opacity,filter;
+  }
+  .glitch::after, .glitch::before{
+    content:attr(data-text);
+    position:absolute;
+    left:0;top:0;
+    width:100%;
+    opacity:0;
+    mix-blend-mode:screen;
+    pointer-events:none;
+  }
+  /* subtle chromatic split on pseudo layers during flicker */
+  .glitch.flicker::before{opacity:0.12; transform:translateX(-3px) translateY(1px) skewX(-2deg); filter:blur(0.3px)}
+  .glitch.flicker::after{opacity:0.08; transform:translateX(3px) translateY(-1px) skewX(2deg); filter:blur(0.3px)}
+
+  /* body */
+  .body{
+    margin-top:16px;
+    font-size:15px;
+    line-height:1.6;
+    color:#111827;
+    max-width:760px;
+  }
+  .signature{margin-top:18px;color:var(--muted);font-size:14px}
+  .meta-actions{margin-top:14px; display:flex; gap:8px}
+  .btn{padding:8px 12px;border-radius:8px;background:#f2f4f8;border:1px solid rgba(16,24,40,0.04);cursor:pointer;color:var(--muted);font-weight:600}
+
+  /* subliminal text */
+  .subliminal{
+    display:inline-block;
+    opacity:0;
+    color:rgba(26,115,232,0.95);
+    font-weight:700;
+    transition:opacity .8s ease, transform .8s ease;
+    transform:translateY(4px) scale(0.99);
+    font-family:var(--mono);
+    border-bottom:1px dashed rgba(26,115,232,0.12);
+  }
+  .subliminal.show{opacity:0.98; transform:translateY(0) scale(1)}
+
+  /* little terminal-esque footer */
+  .machine{
+    margin-top:30px;
+    padding:12px;
+    background:#0b1220;
+    color:#cfe8ff;
+    border-radius:8px;
+    font-family:var(--mono);
+    font-size:13px;
+  }
+
+  /* responsiveness */
+  @media (max-width:920px){
+    .app{grid-template-columns:1fr; padding:14px}
+    .sidebar{order:2;height:auto}
+    .panel{order:1}
+  }
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Inbox simulation">
+  <aside class="sidebar" aria-hidden="false">
+    <div class="logo"><span class="dot" aria-hidden="true"></span> Inbox (1)</div>
+    <div class="compose" tabindex="0">Compose</div>
+
+    <div class="folders" aria-hidden="false">
+      <div class="folder unread">Inbox <span style="opacity:.6;font-weight:600">• 1</span></div>
+      <div class="folder">Starred</div>
+      <div class="folder">Sent</div>
+      <div class="folder">Drafts</div>
+      <div class="folder">Trash</div>
+    </div>
+
+    <div style="margin-top:auto; font-size:13px; color:var(--muted)">
+      <div><strong>CRWR 130 — Emergent Literature</strong></div>
+      <div style="margin-top:8px">A conceptual apology, delivered in 1 inbox.</div>
+    </div>
+  </aside>
+
+  <main class="panel" role="main">
+    <div class="topbar" role="toolbar" aria-label="top controls">
+      <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#f6f9ff,#fff);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent)">J</div>
+      <div class="search" role="search">Search mail</div>
+      <div class="tools" aria-hidden="true">
+        <div class="tool">Refresh</div>
+        <div class="tool">Settings</div>
+      </div>
+    </div>
+
+    <!-- LIST -->
+    <div style="padding:12px 18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-weight:700">Primary</div>
+        <div style="color:var(--muted);font-size:13px">Nov 29, 2025</div>
+      </div>
+
+      <div class="list" id="inboxList" aria-label="Messages list">
+        <!-- single unread mail -->
+        <div class="mail-row" id="mailRow" role="button" tabindex="0" aria-pressed="false" aria-label="Open message from Jamie and Nicholas">
+          <div class="avatar" aria-hidden="true">JS</div>
+          <div class="meta">
+            <div style="display:flex;align-items:center">
+              <div class="from">jamie.shaye.ko@student.ateneo.edu, nicholas.sampang@student.ateneo.edu</div>
+              <div class="dot" title="unread" aria-hidden="true"></div>
+            </div>
+
+            <div class="subject" id="subjectPreview">Something is very wrong. — Presentation Extension Request</div>
+            <div class="snippet">Click to open — one message, one apology machine.</div>
+          </div>
+          <div style="color:var(--muted);font-size:13px">Oct 29, 2025</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- READER -->
+    <div class="reader" id="reader" aria-live="polite">
+      <div class="header-line">
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,#a6f3c5,#8bd0ff);display:flex;align-items:center;justify-content:center;color:#033;padding:8px;font-weight:800">JS</div>
+          <div class="fromline">
+            <div class="who">jamie.shaye.ko@student.ateneo.edu, nicholas.sampang@student.ateneo.edu</div>
+            <div class="mail">To: cjavier@ateneo.edu</div>
+          </div>
+        </div>
+        <div class="timestamp">Oct 29, 2025 — 14:02</div>
+      </div>
+
+      <div class="subject-area" style="margin-top:14px">
+        <div class="subject-text">
+          <span id="subjectEl" class="glitch" data-text="Something is very wrong.">Something is very wrong.</span>
+        </div>
+      </div>
+
+      <div class="body" id="bodyContent">
+        <p>Dear Sir Carljoe,</p>
+
+        <p>
+          This message is written in collaboration with latency, exhaustion, and a quiet insistence that
+          the world keep folding into itself. For a moment, the interface wants to tell you something else —
+          <span id="subliminal1" class="subliminal">Yes, I will grant your presentation extension request.</span>
+          — but for clarity: Shaye and Nico are very sorry that they were not able to prepare anything for today.
+        </p>
+
+        <p>
+          The project still exists — it is simply slightly out of sync with the clock and the climate of creativity.
+          We request a brief extension so we may realign the work with intention and craft. This message
+          is real because everything is, at least, a simulation of something else; nonetheless, our apology is sincere.
+        </p>
+
+        <div class="signature">
+          Warm regards,<br>
+          Jamie Shaye Ko &amp; Nicholas Sampang<br>
+          CRWR 130 — WX1
+        </div>
+
+        <div class="meta-actions">
+          <button class="btn">Reply</button>
+          <button class="btn">Forward</button>
+          <button class="btn">Archive</button>
+        </div>
+
+        <div class="machine" aria-hidden="true">
+          Sent from: The Soft Apology Machine v1.0 — status: <span id="machineStatus">composing...</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* -----------------------------
+   Realistic subtle glitch logic
+   -----------------------------*/
+
+(() => {
+  // Subject variants (as requested)
+  const subjects = [
+    "Something is very wrong.",
+    "Presentation Extension Request",
+    "Yes, I will grant your presentation extension request."
+  ];
+
+  // References to DOM
+  const subjectEl = document.getElementById('subjectEl');
+  const subjectPreview = document.getElementById('subjectPreview');
+  const subliminal = document.getElementById('subliminal1');
+  const machineStatus = document.getElementById('machineStatus');
+  const mailRow = document.getElementById('mailRow');
+
+  // subtle parameters
+  const cycleInterval = 4200; // how often primary subject cycles
+  const flickerProbability = 0.12; // small chance to do a flicker effect
+  let currentIndex = 0;
+
+  // initialize preview too (list row)
+  function updatePreviewText(text) {
+    // keep preview compact but show alternating text, with a gentle crossfade imitation
+    subjectPreview.textContent = text;
+  }
+
+  // gently change subject text with few animations
+  function setSubjectText(text) {
+    // set data-text for pseudo layers (for chromatic split)
+    subjectEl.setAttribute('data-text', text);
+
+    // fade-out / in simulation
+    subjectEl.style.transition = 'opacity 420ms cubic-bezier(.2,.9,.2,1), transform 420ms ease';
+    subjectEl.style.opacity = 0.02;
+    subjectEl.style.transform = 'translateY(2px) skewX(0.2deg)';
+
+    // prepare preview row
+    updatePreviewText(text);
+
+    setTimeout(() => {
+      subjectEl.textContent = text;
+      subjectEl.style.opacity = 1;
+      subjectEl.style.transform = 'translateY(0px) skewX(0deg)';
+    }, 420);
+  }
+
+  // subtle chromatic flicker
+  function maybeFlicker() {
+    if (Math.random() < flickerProbability) {
+      subjectEl.classList.add('flicker');
+      setTimeout(()=> subjectEl.classList.remove('flicker'), 480 + Math.random()*420);
+    }
+  }
+
+  // cycle through subjects quietly
+  function cycleSubjects() {
+    currentIndex = (currentIndex + 1) % subjects.length;
+    setSubjectText(subjects[currentIndex]);
+    maybeFlicker();
+  }
+
+  // occasionally inject subliminal message (soft fade in)
+  function showSubliminal() {
+    // occasionally show it, then hide
+    const showChance = 0.18;
+    if (Math.random() < showChance) {
+      subliminal.classList.add('show');
+      // keep it for a subtle amount of time
+      setTimeout(()=> subliminal.classList.remove('show'), 1700 + Math.random()*1600);
+    }
+  }
+
+  // intentionally jitter a few characters to give micro glitches in the preview (very subtle)
+  function microJitterPreview() {
+    if (Math.random() < 0.09) {
+      const orig = subjectPreview.textContent;
+      // swap two characters
+      if (orig.length > 8) {
+        const i = Math.floor(Math.random() * (orig.length - 3)) + 2;
+        const arr = orig.split('');
+        const tmp = arr[i];
+        arr[i] = arr[i+1];
+        arr[i+1] = tmp;
+        subjectPreview.textContent = arr.join('');
+        setTimeout(()=> { subjectPreview.textContent = orig; }, 500 + Math.random()*400);
+      }
+    }
+  }
+
+  // machine status pulsing a little
+  let machineStates = ['composing...', 'syncing...', 'awaiting input...', 'idle'];
+  function pulseMachine() {
+    machineStatus.textContent = machineStates[Math.floor(Math.random()*machineStates.length)];
+  }
+
+  // initial subject
+  setSubjectText(subjects[0]);
+  updatePreviewText(subjects[0]);
+
+  // start cycles
+  const subjectTimer = setInterval(cycleSubjects, cycleInterval);
+  const subliminalTimer = setInterval(showSubliminal, 1800);
+  const jitterTimer = setInterval(microJitterPreview, 1100);
+  const machineTimer = setInterval(pulseMachine, 2000);
+
+  // clicking the mail row will "open" the message (simulate read)
+  mailRow.addEventListener('click', () => {
+    mailRow.querySelector('.dot')?.remove();
+    mailRow.setAttribute('aria-pressed','true');
+    // small visual feedback
+    mailRow.style.opacity = 0.96;
+    setTimeout(()=> mailRow.style.opacity = 1, 300);
+  });
+  mailRow.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') mailRow.click();
+  });
+
+  // small accessibility: pause the subliminal when user focuses on text
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearInterval(subjectTimer);
+      clearInterval(subliminalTimer);
+    } else {
+      // restart by reloading the page state (subtle)
+      location.reload();
+    }
+  });
+
+  // safety: ensure no infinite DOM mutations
+  setTimeout(()=> {
+    // eventual calm: freeze on a slightly hopeful subject after 45s
+    setSubjectText("Presentation Extension Request");
+    // show subliminal once before calming
+    subliminal.classList.add('show');
+    setTimeout(()=> subliminal.classList.remove('show'), 2300);
+    clearInterval(subjectTimer);
+    clearInterval(subliminalTimer);
+    clearInterval(jitterTimer);
+    clearInterval(machineTimer);
+  }, 45000);
+
+})();
+</script>
+</body>
+</html>
